@@ -1,0 +1,280 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/fitness_coach_app/nextjs_space/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String      @id @default(cuid())
+  email             String      @unique
+  name              String?
+  password          String
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  onboarding        OnboardingData?
+  healthData        HealthData[]
+  workoutSessions   WorkoutSession[]
+  chatMessages      ChatMessage[]
+  subscription      Subscription?
+  settings          Settings?
+  bodyMetrics       BodyMetric[]
+  nutritionLogs     NutritionLog[]
+  hydrationLogs     HydrationLog[]
+}
+
+model OnboardingData {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Screen 1: Data sources
+  dataSources           Json      // {appleHealth: {steps: true, hrv: true, sleep: true, calories: true}, ...}
+  
+  // Screen 2: Basic profile
+  age                   Int
+  gender                String
+  heightCm              Float
+  weightKg              Float
+  bodyFatPercent        Float?
+  
+  // Screen 3: Goals
+  goal                  String    // "lose", "maintain", "gain"
+  aggressiveness        String    // "very_slow", "moderate", "fast"
+  priority              String    // "looks", "strength", "energy", "mix"
+  priorityDetails       String?
+  
+  // Screen 4: Activity
+  worksOut              Boolean
+  workoutTypes          Json?     // ["weights", "cardio", "classes"]
+  workoutDaysPerWeek    Int?
+  workoutFixedDays      Json?     // ["monday", "wednesday", "friday"]
+  workoutRoutine        String?
+  dailyStepsWorkdays    String?   // "low", "medium", "high", "very_high" or number
+  dailyStepsDaysOff     String?
+  weeklyActivityLevel   String    // "sedentary", "lightly_active", "active", "very_active"
+  
+  // Screen 5: Diet
+  eatingStyle           String    // "normal", "high_protein", "low_carb", "balanced"
+  restrictions          Json      // ["vegan", "gluten_free"]
+  dislikedFoods         String?
+  
+  // Screen 6: Sleep
+  usualBedtime          String    // "22:30"
+  usualWakeTime         String    // "06:30"
+  sleepHoursWorkdays    Float
+  sleepHoursDaysOff     Float
+  sleepStruggles        Json      // ["falling_asleep", "staying_asleep"]
+  
+  // Screen 7: Location
+  locationAccess        String    // "just_city", "precise", "manual"
+  city                  String?
+  
+  // Screen 8: Work schedule
+  workdays              Json      // ["monday", "tuesday", "wednesday", "thursday", "friday"]
+  workStartTime         String    // "09:00"
+  workEndTime           String    // "17:00"
+  workType              String    // "sitting", "walking", "physical", "mixed"
+  morePhysicalDays      Json?     // ["wednesday", "friday"]
+  morePhysicalDetails   String?
+  
+  // Screen 9: Equipment
+  gymAccess             Boolean
+  homeEquipment         Json      // ["dumbbells", "barbell", "bands"]
+  confidenceLevel       String    // "beginner", "comfortable", "advanced"
+  
+  // Screen 10: App personality
+  talkStyle             String    // "direct", "supportive", "educational", "mix"
+  notifications         Json      // {water: true, sleep: true, recovery: true, macros: true}
+  
+  // Screen 11: Permissions
+  healthConnected       Boolean   @default(false)
+  locationEnabled       Boolean   @default(false)
+  notificationsEnabled  Boolean   @default(false)
+  
+  // Calculated targets
+  dailyCalorieTarget    Int?
+  dailyProteinTarget    Float?
+  dailyCarbsTarget      Float?
+  dailyFatsTarget       Float?
+  
+  completedAt           DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model HealthData {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date                  DateTime  @default(now())
+  
+  // Activity
+  steps                 Int?
+  caloriesBurned        Int?
+  activeMinutes         Int?
+  
+  // Sleep
+  sleepDurationMinutes  Int?
+  deepSleepMinutes      Int?
+  remSleepMinutes       Int?
+  lightSleepMinutes     Int?
+  sleepQuality          Int?      // 1-5
+  
+  // Heart & recovery
+  restingHeartRate      Int?
+  heartRateVariability  Int?      // HRV in ms
+  respirationRate       Float?
+  oxygenSaturation      Float?
+  
+  // Computed scores
+  bodyBatteryScore      Int?      // 0-100
+  stressScore           Int?      // 1-5
+  recoveryScore         Int?      // 1-5
+  
+  // Training
+  trainingLoad          Int?      // Computed from workout intensity
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model WorkoutSession {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  date              DateTime  @default(now())
+  type              String    // "weights", "cardio", "hiit", "sports", "yoga"
+  durationMinutes   Int
+  intensity         Int       // 1-5
+  description       String?
+  caloriesBurned    Int?
+  
+  // Specific data
+  exercises         Json?     // [{name: "Bench Press", sets: 3, reps: 10, weight: 80}, ...]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([userId, date])
+}
+
+model ChatMessage {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  role          String    // "user" or "assistant"
+  content       String    @db.Text
+  context       Json?     // Snapshot of user's current state when message was sent
+  
+  createdAt     DateTime  @default(now())
+  
+  @@index([userId, createdAt])
+}
+
+model Subscription {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  status            String    // "free_trial", "active", "expired", "cancelled"
+  tier              String?   // "basic", "premium"
+  stripeCustomerId  String?
+  stripeSubscriptionId String?
+  
+  trialEndsAt       DateTime?
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean   @default(false)
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model Settings {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Notification preferences
+  notificationsEnabled  Boolean   @default(true)
+  waterReminders        Boolean   @default(true)
+  sleepWarnings         Boolean   @default(true)
+  recoveryAlerts        Boolean   @default(true)
+  macroCheckIns         Boolean   @default(true)
+  quietHoursStart       String?   // "22:00"
+  quietHoursEnd         String?   // "08:00"
+  
+  // App personality
+  talkStyle             String    @default("mix")
+  
+  // Units
+  weightUnit            String    @default("kg")    // "kg" or "lb"
+  heightUnit            String    @default("cm")    // "cm" or "ft"
+  hydrationUnit         String    @default("oz")    // "oz", "L", "cups"
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model BodyMetric {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  date              DateTime  @default(now())
+  weightKg          Float?
+  bodyFatPercent    Float?
+  muscleMassKg      Float?
+  
+  // Optional measurements
+  waistCm           Float?
+  chestCm           Float?
+  armsCm            Float?
+  thighsCm          Float?
+  
+  createdAt         DateTime  @default(now())
+  
+  @@index([userId, date])
+}
+
+model NutritionLog {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  date              DateTime  @default(now())
+  mealType          String?   // "breakfast", "lunch", "dinner", "snack"
+  
+  calories          Int?
+  proteinGrams      Float?
+  carbsGrams        Float?
+  fatsGrams         Float?
+  
+  description       String?
+  
+  createdAt         DateTime  @default(now())
+  
+  @@index([userId, date])
+}
+
+model HydrationLog {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  date              DateTime  @default(now())
+  amountOz          Float
+  
+  createdAt         DateTime  @default(now())
+  
+  @@index([userId, date])
+}
